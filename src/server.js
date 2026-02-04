@@ -1,72 +1,31 @@
 import express from 'express';
 import cors from 'cors';
-import pino from 'pino-http';
+import helmet from 'helmet';
 import 'dotenv/config';
 
+import { connectMongoDB } from './db/connectMongoDB.js';
+import { logger } from './middleware/logger.js';
+import { notFoundHandler } from './middleware/notFoundHandler.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import notesRouter from './routes/notesRoutes.js';
+
+
 const app = express();
-// Використовуємо значення з .env або дефолтний порт 3000
 const PORT = process.env.PORT ?? 3000;
 
-// Middleware дозволяє обробляти дані у форматі JSON, які надходять у body запиту
-app.use(express.json());
+app.use(logger);
+app.use(express.json({ limit: '5mb' }));
+app.use(cors({ methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'] }));
+app.use(helmet());
 
-// Middleware дозволяє робити запити з інших доменів;
-app.use(cors());
+app.use(notesRouter);
 
-// Middleware налаштування логування HTTP-запитів за допомогою пакета pino-http
-app.use(
-  pino({
-    level: 'info',
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'HH:MM:ss',
-        ignore: 'pid,hostname',
-        messageFormat:
-          '{req.method} {req.url} {res.statusCode} - {responseTime}ms',
-        hideObject: true,
-      },
-    },
-  }),
-);
+app.use(notFoundHandler);
 
-// Список усіх нотаток
-app.get('/notes', (req, res) => {
-  res.status(200).json({ message: 'Retrieved all notes' });
-});
+app.use(errorHandler);
 
-// Конкретна нотатка за id
-app.get('/notes/:noteId', (req, res) => {
-  const { noteId } = req.params;
-  res.status(200).json({ message: `Retrieved note with ID: ${noteId}` });
-});
+await connectMongoDB();
 
-// Маршрут для тестування middleware помилки
-app.get('/test-error', (req, res) => {
-  // Штучна помилка для прикладу
-  throw new Error('Simulated server error');
-});
-
-// Middleware 404 (для обробки всіх запитів, що не відповідають жодному наявному маршруту.)
-app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' });
-});
-
-// Middleware для обробки помилок
-app.use((err, req, res, next) => {
-  console.error(err);
-
-  const isProd = process.env.NODE_ENV === 'production';
-
-  res.status(500).json({
-    message: isProd
-      ? 'Something went wrong. Please try again later.'
-      : err.message,
-  });
-});
-
-// Запуск сервера
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
