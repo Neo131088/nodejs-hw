@@ -1,45 +1,45 @@
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-
-import { errors } from 'celebrate';
 import cookieParser from 'cookie-parser';
-console.log('MongoDB URL:', process.env.MONGODB_URL);
-import { connectMongoDB } from './db/connectMongoDB.js';
-import { logger } from './middleware/logger.js';
-import { notFoundHandler } from './middleware/notFoundHandler.js';
-import { errorHandler } from './middleware/errorHandler.js';
-
+import logger from 'morgan';
+import 'dotenv/config';
+import connectDB from './db/connectMongoDB.js';
+import userRoutes from './routes/userRoutes.js';
 import notesRoutes from './routes/notesRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 
+import notFoundHandler from './middleware/notFoundHandler.js';
+import errorHandler from './middleware/errorHandler.js';
+import { errors as celebrateErrors } from 'celebrate';
+
 const app = express();
-const PORT = process.env.PORT ?? 3000;
 
 // Middleware
-app.use(logger);
-app.use(express.json());
+app.use(logger('dev'));
 app.use(cors());
+app.use(express.json());
 app.use(cookieParser());
 
-// Роутери
-app.use('/auth', authRoutes);
-app.use('/notes', notesRoutes);
+// Роутери (без префіксу шляху)
+app.use(userRoutes);
+app.use(notesRoutes);
+app.use(authRoutes);
 
-// 404 та обробка помилок
+// Обробка помилок
 app.use(notFoundHandler);
-app.use(errors());
+app.use(celebrateErrors());
 app.use(errorHandler);
 
-// Запуск сервера після підключення до MongoDB
-const startServer = async () => {
-  try {
-    await connectMongoDB();
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
-};
+// Підключення до MongoDB і старт сервера
+const PORT = process.env.PORT || 5000;
 
-startServer();
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to connect to DB', err);
+    process.exit(1);
+  });

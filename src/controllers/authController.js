@@ -3,7 +3,11 @@ import { User } from '../models/user.js';
 import bcrypt from 'bcrypt';
 import { Session } from '../models/session.js';
 import { createSession, setSessionCookies } from '../services/auth.js';
-
+import jwt from 'jsonwebtoken';
+import fs from 'fs';
+import path from 'path';
+import handlebars from 'handlebars';
+import { sendEmail } from '../utils/sendMail.js';
 // --------------------- Реєстрація користувача ---------------------
 export const registerUser = async (req, res, next) => {
   try {
@@ -77,31 +81,61 @@ export const requestResetEmail = async (req, res, next) => {
     const { email } = req.body;
     const user = await User.findOne({ email });
 
-    if (!user) {
-      return next(createHttpError(404, 'User not found'));
-    }
+    // Завжди повертаємо 200, щоб не розкривати наявність email
+    if (!user) return res.status(200).json({ message: 'If the email exists, a reset link has been sent.' });
 
-    // TODO: тут логіка відправки email з токеном
-    res.status(200).json({ message: 'Reset email sent' });
-  } catch (error) {
-    next(error);
+    // Генерація JWT токена (15 хв)
+    const token = jwt.sign(
+      { sub: user._id.toString(), email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    // Зчитування та компіляція шаблону
+    const templatePath = path.join(process.cwd(), 'src', 'templates', 'reset-password-email.html');
+    const templateSource = fs.readFileSync(templatePath, 'utf-8');
+    const template = handlebars.compile(templateSource);
+
+    const resetLink = `${process.env.FRONTEND_DOMAIN}/reset-password?token=${token}`;
+    const html = template({ resetLink, userName: user.email });
+
+    await sendEmail({
+      to: user.email,
+      subject: 'Reset your password',
+      html,
+      from: process.env.SMTP_FROM
+    });
+
+    res.status(200).json({ message: 'If the email exists, a reset link has been sent.' });
+  } catch (err) {
+    next(err); // глобальний errorHandler обробить помилку
   }
 };
 
 // --------------------- Скидання пароля ---------------------
 export const resetPassword = async (req, res, next) => {
   try {
-    const { token, newPassword } = req.body;
+    const { token, password } = req.body;
 
-    // TODO: логіка перевірки токена та оновлення пароля
-    // const user = await User.findOne({ resetToken: token });
-    // const hashedPassword = await bcrypt.hash(newPassword, 10);
-    // user.password = hashedPassword;
-    // await user.save();
+    if (!token || !password) return res.status(400).json({ message: 'Token and password are required.' });
 
-    res.status(200).json({ message: 'Password reset successful' });
-  } catch (error) {
-    next(error);
+    let payload;
+    try {
+      payload = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ message: 'Invalid or expired token.' });
+    }
+
+    const user = await User.findOne({ _id: payload.sub, email: payload.email });
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ message: 'Password has been reset successfully.' });
+  } catch (err) {
+    next(err);
   }
 };
 
