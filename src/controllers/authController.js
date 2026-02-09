@@ -99,16 +99,21 @@ export const requestResetEmail = async (req, res, next) => {
     const resetLink = `${process.env.FRONTEND_DOMAIN}/reset-password?token=${token}`;
     const html = template({ resetLink, userName: user.email });
 
-    await sendEmail({
-      to: user.email,
-      subject: 'Reset your password',
-      html,
-      from: process.env.SMTP_FROM
-    });
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Reset your password',
+        html,
+        from: process.env.SMTP_FROM
+      });
+    } catch (emailErr) {
+      // ❌ обгортаємо будь-яку помилку sendEmail у HTTP 500
+      return next(createHttpError(500, 'Failed to send reset email'));
+    }
 
     res.status(200).json({ message: 'If the email exists, a reset link has been sent.' });
   } catch (err) {
-    next(err); // глобальний errorHandler обробить помилку
+    next(err);
   }
 };
 
