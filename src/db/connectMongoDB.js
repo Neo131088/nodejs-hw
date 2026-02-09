@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-export const connectMongoDB = async () => {
+const connectMongoDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URL); // без useNewUrlParser та useUnifiedTopology
     console.log('MongoDB connected');
@@ -9,3 +9,5 @@ export const connectMongoDB = async () => {
     process.exit(1);
   }
 };
+
+export default connectMongoDB; // <- default export
