@@ -1,6 +1,6 @@
 import { HttpError } from 'http-errors';
 
-const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, next) => {
   console.error('Error Middleware:', err);
 
   if (err instanceof HttpError) {
@@ -17,5 +17,3 @@ const errorHandler = (err, req, res, next) => {
       : err.message,
   });
 };
-
-export default errorHandler;

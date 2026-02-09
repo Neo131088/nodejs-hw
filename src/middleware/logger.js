@@ -1,16 +1,9 @@
-import pino from 'pino-http';
+import pinoHttp from 'pino-http';
+import pino from 'pino';
 
-export const logger = pino({
-  level: 'info',
-  transport: {
+export const logger = pinoHttp({
+  transport: process.env.NODE_ENV !== 'production' ? {
     target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'HH:MM:ss',
-      ignore: 'pid,hostname',
-      messageFormat:
-        '{req.method} {req.url} {res.statusCode} - {responseTime}ms',
-      hideObject: true,
-    },
-  },
+    options: { colorize: true }
+  } : undefined,
 });
